@@ -8,7 +8,7 @@
 #include <sys/wait.h>
 #include <pthread.h> 
 
-#define Q_SIZE 100
+#define Q_SIZE 10
 #define NUM_PRODUCERS 10
 #define NUM_CONSUMERS 5
 #define MAX_ENTRIES 20
@@ -129,7 +129,7 @@ int enqueue(prio_queue_t* queue, message_t* message){
 }
 
 // Reads and removes message in queue. 
-// If successful, returns the data value. If queue is full, returns -1.
+// If successful, returns the data value. If queue is empty, returns -1.
 int dequeue(prio_queue_t* queue){
     // Check if queue is empty
     if(isEmpty(queue)){
@@ -150,10 +150,11 @@ THREAD FUNCTIONS
 // THREAD: Producer process
 
 // THREAD: PRODUCER : Writes message to the queue with mutex
-void writeMessage(prio_queue_t *queue, message_t * message){
+int writeMessage(prio_queue_t *queue, message_t * message){
     pthread_mutex_lock(&mutex);
-    enqueue(queue, message);
+    int retval = enqueue(queue, message);
     pthread_mutex_unlock(&mutex);
+    return retval;
 }
 
 // THREAD: CONSUMER : Reads message from the queue with mutex
@@ -181,19 +182,27 @@ void* producerThread(void* arg){
     // Recast void* arg to unpack shared_queue address
     prio_queue_t * shared_queue = (prio_queue_t*) arg;
 
+    // Integer to store amount of successful writes by this thread.
+    int writes = 0;
+
     // Generate a stream of random integer data values after a random time from 1 - 2 seconds
     // Then write onto shared queue
-    for (int i = 0; i < 4; i++){
-        // Wait for a random time
-        sleep(rand() % MAX_PROD_WAIT + 1);
+    while(1){
+        if(shared_queue){
+            int retval = -1;
+            // Generate a message
+            message_t message = generateMessage(priority);
 
-        // Generate a message
-        message_t message = generateMessage(priority);
-
-        // Write message onto queue
-        writeMessage(shared_queue, &message);
+            // Loop until message is successfully written.
+            while(retval == -1){
+                // Write message onto queue
+                retval = writeMessage(shared_queue, &message);
+                // Wait for a random time
+                sleep(rand() % MAX_PROD_WAIT + 1);
+            }
+        }
     }
-    return 0;
+    return ((void*) writes);
 }
 
 // THREAD: Consumer process
@@ -201,19 +210,23 @@ void* consumerThread(void* arg){
 
     // Recast void* arg to unpack shared_queue address
     prio_queue_t * shared_queue = (prio_queue_t*) arg;
-
+    // Integer to store amount of successful reads by this thread.
+    int reads = 0;
     // Read after a random time from 1-MAX_CONS_WAIT seconds
-    for (int i = 0; i < 4; i++){
+    while(1){
         if(shared_queue){
             int data_value = readMessage(shared_queue);
-            printf("Consumer %d read: %d\n", gettid(), data_value);
-            if (data_value > 9){
-                printf("??");
+            if (data_value != -1){
+                printf("Consumer %d read: %d\n", gettid(), data_value);
+                reads++;
+            }
+            else{
+                printf("Consumer %d failed to read", gettid());
             }
         }
         sleep(rand() % MAX_CONS_WAIT + 1);
     }
-    return 0;
+    return ((void*) reads);
 }
 
 // THREAD: Create NUM_PRODUCER threads that run producerThread() with arguments in thread_data
@@ -266,11 +279,15 @@ void runThreads(prio_queue_t*shared_queue){
 
     // Wait for all threads in arrays to terminate
     for (int i = 0; i < num_producers; i++) {
-        pthread_join(producer_threads[i], NULL);
+        void* retval;
+        pthread_join(producer_threads[i], &retval);
+        printf("Producer %d exited with %d writes", i, (int)retval);
     }
 
     for (int i = 0; i < num_consumers; i++) {
-        pthread_join(consumer_threads[i], NULL);
+        void* retval;
+        pthread_join(consumer_threads[i], &retval);
+        printf("Consumer %d exited with %d reads", i, (int)retval);
     }
 }
 

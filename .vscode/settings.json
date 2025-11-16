@@ -1,0 +1,11 @@
+{
+    "files.associations": {
+        "pthread.h": "c",
+        "time.h": "c",
+        "wait.h": "c",
+        "types.h": "c",
+        "stdlib.h": "c",
+        "unistd.h": "c",
+        "stdio.h": "c"
+    }
+}
