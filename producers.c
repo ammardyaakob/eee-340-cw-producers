@@ -8,7 +8,7 @@
 #include <sys/wait.h>
 #include <pthread.h> 
 
-#define Q_SIZE 10
+#define Q_SIZE 2
 #define NUM_PRODUCERS 10
 #define NUM_CONSUMERS 5
 #define MAX_ENTRIES 20
@@ -147,7 +147,10 @@ THREAD FUNCTIONS
 ================
 */
 
-// THREAD: Producer process
+// THREAD : Struct to pass pointers into threads
+struct t_data_t{
+    prio_queue_t* shared_queue;
+};
 
 // THREAD: PRODUCER : Writes message to the queue with mutex
 int writeMessage(prio_queue_t *queue, message_t * message){
@@ -180,14 +183,14 @@ void* producerThread(void* arg){
     int priority = rand() % 10;
 
     // Recast void* arg to unpack shared_queue address
-    prio_queue_t * shared_queue = (prio_queue_t*) arg;
+    struct t_data_t* t_data = (struct t_data_t*) arg;
+    prio_queue_t * shared_queue = (prio_queue_t*) t_data->shared_queue;
 
     // Integer to store amount of successful writes by this thread.
     int writes = 0;
-
     // Generate a stream of random integer data values after a random time from 1 - 2 seconds
     // Then write onto shared queue
-    while(1){
+    for (int i = 0; i < 3; i++){
         if(shared_queue){
             int retval = -1;
             // Generate a message
@@ -200,6 +203,7 @@ void* producerThread(void* arg){
                 // Wait for a random time
                 sleep(rand() % MAX_PROD_WAIT + 1);
             }
+            writes++;
         }
     }
     return ((void*) writes);
@@ -209,11 +213,12 @@ void* producerThread(void* arg){
 void* consumerThread(void* arg){
 
     // Recast void* arg to unpack shared_queue address
-    prio_queue_t * shared_queue = (prio_queue_t*) arg;
+    struct t_data_t* t_data = (struct t_data_t*) arg;
+    prio_queue_t * shared_queue = (prio_queue_t*) t_data->shared_queue;
     // Integer to store amount of successful reads by this thread.
     int reads = 0;
     // Read after a random time from 1-MAX_CONS_WAIT seconds
-    while(1){
+    for(int i = 0; i < 10; i++){
         if(shared_queue){
             int data_value = readMessage(shared_queue);
             if (data_value != -1){
@@ -221,21 +226,22 @@ void* consumerThread(void* arg){
                 reads++;
             }
             else{
-                printf("Consumer %d failed to read", gettid());
+                printf("Consumer %d failed to read\n", gettid());
             }
         }
         sleep(rand() % MAX_CONS_WAIT + 1);
     }
-    return ((void*) reads);
+    return ((void*)reads);
 }
 
 // THREAD: Create NUM_PRODUCER threads that run producerThread() with arguments in thread_data
-void createProducerThreads(pthread_t* threads, prio_queue_t* shared_queue){
+void createProducerThreads(pthread_t* threads, prio_queue_t* shared_queue, struct t_data_t* t_data){
     int num_producers = NUM_PRODUCERS; // to use in for loop
-    for (int i = 0; i < num_producers; i++) {
 
+    for (int i = 0; i < num_producers; i++) {
+        
         // Passing shared_queue as argument into thread
-        void* args = (void*) shared_queue;
+        void* args = (void*) t_data;
 
         pthread_attr_t* threadAttributes = NULL; // Unused
         
@@ -247,12 +253,11 @@ void createProducerThreads(pthread_t* threads, prio_queue_t* shared_queue){
 }
 
 // THREAD: Create NUM_CONSUMER threads that run consumerThread()
-void createConsumerThreads(pthread_t* threads, prio_queue_t* shared_queue){
+void createConsumerThreads(pthread_t* threads, prio_queue_t* shared_queue, struct t_data_t* t_data){
     int num_consumers = NUM_CONSUMERS; // to use in for loop
     for (int i = 0; i < num_consumers; i++) {
-
         // Passing shared_queue as argument into thread
-        void* args = (void*) shared_queue;
+        void* args = (void*) t_data;
 
         pthread_attr_t* threadAttributes = NULL;
         if(pthread_create((pthread_t*) &threads[i], threadAttributes, consumerThread, args) != 0){
@@ -264,7 +269,9 @@ void createConsumerThreads(pthread_t* threads, prio_queue_t* shared_queue){
 
 // THREAD: Primary threading function
 void runThreads(prio_queue_t*shared_queue){
-
+    // Initialize struct to store shared queue pointer to pass to threads.
+    struct t_data_t t_data;
+    t_data.shared_queue = shared_queue;
     // to use in for loops
     int num_producers = NUM_PRODUCERS; 
     int num_consumers = NUM_CONSUMERS; 
@@ -274,20 +281,20 @@ void runThreads(prio_queue_t*shared_queue){
     pthread_t consumer_threads[num_consumers];
 
     // Create threads and store them in respective arrays.
-    createProducerThreads(producer_threads,shared_queue); 
-    createConsumerThreads(consumer_threads,shared_queue); 
+    createProducerThreads(producer_threads,shared_queue,&t_data); 
+    createConsumerThreads(consumer_threads,shared_queue,&t_data);
 
     // Wait for all threads in arrays to terminate
     for (int i = 0; i < num_producers; i++) {
         void* retval;
         pthread_join(producer_threads[i], &retval);
-        printf("Producer %d exited with %d writes", i, (int)retval);
+        printf("Producer %d exited with %d writes\n", i, (int)retval);
     }
 
     for (int i = 0; i < num_consumers; i++) {
         void* retval;
         pthread_join(consumer_threads[i], &retval);
-        printf("Consumer %d exited with %d reads", i, (int)retval);
+        printf("Consumer %d exited with %d reads\n", i, (int)retval);
     }
 }
 
