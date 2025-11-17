@@ -21,18 +21,18 @@
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
 /*
-=============
-QUEUE STRUCTS
-=============
+=======
+STRUCTS
+=======
 */
 
-// Message containing a data value and a priority.
+// QUEUE: Message containing a data value and a priority.
 typedef struct {
     int data_value;
     int priority;
 } message_t;
 
-// Heap of messages (MAX HEAP)
+// QUEUE: Messages heap / priority queue
 typedef struct {
     message_t entries[Q_SIZE];
     int size;
@@ -48,7 +48,12 @@ struct t_data_t{
 =======================================
 QUEUE FUNCTIONS : Priority Queue / Heap
 =======================================
+The heap is a data structure that always has the highest value and earliest entry
+as the root node. The value the heap is ordered in here is the priority, so the
+highest priority and earliest entry will always be the root node which will be the 
+node that will be accessed when a consumer reads. It is implemented as a max heap.
 */
+
 
 void initQueue(prio_queue_t* queue){
     queue->size = 0;
@@ -90,6 +95,8 @@ void heapify(prio_queue_t *heap, int i)
 // Restores heap structure by starting from the first non-leaf index.
 void restoreHeap(prio_queue_t* heap){
     if(heap->size>1){
+         // First non-leaf index is (n/2) - 1
+         // Where n is the current amount of nodes in the heap.
         heapify(heap, (heap->size)/2 -1);
     }
 }
@@ -99,7 +106,7 @@ void heapInsert(prio_queue_t *heap, message_t* message){
     heap->entries[heap->size] = *message;
     heap->size++;
 
-    // Heapify tree
+    // Restore heap property.
     restoreHeap(heap);
 }
 
@@ -125,9 +132,10 @@ int isFull(prio_queue_t* queue) {
     return (queue->size == Q_SIZE); 
 }
 
-// Add message to queue. If successful, returns 0. If queue is full, returns -1.
+// Add message to queue if not full. If successful, returns 0. If queue is full, returns -1.
 int enqueue(prio_queue_t* queue, message_t* message){
     if(isFull(queue)){
+        // DEV: Print if queue was full on write
         printf("Queue full!\n");
         return -1;
     }
@@ -135,15 +143,19 @@ int enqueue(prio_queue_t* queue, message_t* message){
     return 0;
 }
 
-// Reads and removes message in queue. 
+// Reads and removes a message in queue if there is one. 
 // If successful, returns the data value. If queue is empty, returns -1.
 int dequeue(prio_queue_t* queue){
     // Check if queue is empty
     if(isEmpty(queue)){
+        // DEV: Print if queue was empty on read
         printf("Queue empty!\n");
         return -1;
     }
+    // Read a message from the heap by removing the root node 
+    // which returns the message removed.
     message_t message = heapRemove(queue, 0);
+    // Return the data value read from the root node.
     int data_value = message.data_value;
     return data_value;
 }
@@ -152,10 +164,14 @@ int dequeue(prio_queue_t* queue){
 ================
 THREAD FUNCTIONS
 ================
+Mutex is called here because enqueue() and dequeue() immediately checks if the queue is empty.
+If the check is done before the mutex, the thread wouldn't know if the queue is empty
+after a mutex wait.
 */
 
 // THREAD: PRODUCER : Writes message to the queue with mutex
 int writeMessage(prio_queue_t *queue, message_t * message){
+
     pthread_mutex_lock(&mutex);
     int retval = enqueue(queue, message);
     pthread_mutex_unlock(&mutex);
@@ -210,7 +226,10 @@ void* producerThread(void* arg){
     // Then write onto shared queue
     while(*timer < TIMEOUT_VALUE){
         if(shared_queue){
+            // retval stores writeMessage() return value. if -1, 
+            // queue was full and message is not written.
             int retval = -1;
+
             // Generate a message
             message_t message = generateMessage(priority);
 
@@ -241,6 +260,8 @@ void* consumerThread(void* arg){
     for(int i = 0; i < 10; i++){
         if(shared_queue && *timer < TIMEOUT_VALUE){
             int data_value = readMessage(shared_queue);
+
+            // DEV: Print out data. If readMessage() returns -1 that means queue was empty.
             if (data_value != -1){
                 printf("Consumer %d read: %d\n", gettid(), data_value);
                 reads++;
@@ -301,10 +322,11 @@ void createConsumerThreads(pthread_t* threads, struct t_data_t* t_data){
 
 // THREAD: Primary threading function
 void runThreads(prio_queue_t*shared_queue, int* timer){
-    // Initialize struct to store shared queue pointer to pass to threads.
+    // Initialize struct to store shared queue and timer pointer to pass to threads.
     struct t_data_t t_data;
     t_data.shared_queue = shared_queue;
     t_data.timer = timer;
+
     // to use in for loops
     int num_producers = NUM_PRODUCERS; 
     int num_consumers = NUM_CONSUMERS; 
@@ -320,6 +342,7 @@ void runThreads(prio_queue_t*shared_queue, int* timer){
     createTimerThread(&timer_thread,&t_data);
 
     // Wait for all threads in arrays to terminate
+    // DEV: Prints out amount of reads/writes of each producer and consumer.
     for (int i = 0; i < num_producers; i++) {
         void* retval;
         pthread_join(producer_threads[i], &retval);
@@ -331,6 +354,7 @@ void runThreads(prio_queue_t*shared_queue, int* timer){
         pthread_join(consumer_threads[i], &retval);
         printf("Consumer %d exited with %d reads\n", i, (int)retval);
     }
+
     pthread_join(timer_thread,NULL);
 }
 
@@ -341,12 +365,13 @@ MAIN
 */
 
 int main(int argc, char *argv[]) {
-    srand(time(NULL)); // Random seed
-    // Initialize shared queue.
+    // Random seed based on OS time in seconds.
+    srand(time(NULL));
+    // Initialize shared queue and timer.
     int timer = 0;
     prio_queue_t shared_queue; 
     initQueue(&shared_queue);
 
-    // Pass the pointer to the shared queue to the threads.
+    // Pass the pointer to the shared queue and timer to the threads.
     runThreads(&shared_queue, &timer);
 };
