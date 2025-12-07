@@ -7,6 +7,8 @@
 #include <time.h>
 #include <sys/wait.h>
 #include <pthread.h> 
+#include <string.h>
+#include <ctype.h>
 
 #define Q_SIZE 5
 #define NUM_PRODUCERS 10
@@ -42,6 +44,9 @@ typedef struct {
 struct t_data_t{
     prio_queue_t* shared_queue;
     int* timer;
+    int* num_producers;
+    int* num_consumers;
+    int* timeout_value;
 };
 
 /* 
@@ -321,25 +326,21 @@ void createConsumerThreads(pthread_t* threads, struct t_data_t* t_data){
 }
 
 // THREAD: Primary threading function
-void runThreads(prio_queue_t*shared_queue, int* timer){
-    // Initialize struct to store shared queue and timer pointer to pass to threads.
-    struct t_data_t t_data;
-    t_data.shared_queue = shared_queue;
-    t_data.timer = timer;
+void runThreads(struct t_data_t* t_data){
 
-    // to use in for loops
-    int num_producers = NUM_PRODUCERS; 
-    int num_consumers = NUM_CONSUMERS; 
+    // Get number of producers and consumers from thread data passed.
+    int num_producers = *t_data->num_producers; 
+    int num_consumers = *t_data->num_consumers; 
 
-     // Store all threads in an array so they can be joined.
+    // Store producer and consumer threads in an array so they can be joined.
     pthread_t producer_threads[num_producers];
     pthread_t consumer_threads[num_consumers];
     pthread_t timer_thread;
 
     // Create threads and store them in respective arrays.
-    createProducerThreads(producer_threads,&t_data); 
-    createConsumerThreads(consumer_threads,&t_data);
-    createTimerThread(&timer_thread,&t_data);
+    createProducerThreads(producer_threads,t_data); 
+    createConsumerThreads(consumer_threads,t_data);
+    createTimerThread(&timer_thread,t_data);
 
     // Wait for all threads in arrays to terminate
     // DEV: Prints out amount of reads/writes of each producer and consumer.
@@ -367,11 +368,56 @@ MAIN
 int main(int argc, char *argv[]) {
     // Random seed based on OS time in seconds.
     srand(time(NULL));
-    // Initialize shared queue and timer.
+
+    // Initialize variables and shared queue.
+    int num_producers = NUM_PRODUCERS; 
+    int num_consumers = NUM_CONSUMERS; 
+    int timeout_value = TIMEOUT_VALUE;
     int timer = 0;
     prio_queue_t shared_queue; 
     initQueue(&shared_queue);
 
-    // Pass the pointer to the shared queue and timer to the threads.
-    runThreads(&shared_queue, &timer);
+    // Pack t_data with addresses of variables and shared queue.
+    struct t_data_t t_data;
+    t_data.shared_queue = &shared_queue;
+    t_data.timer = &timer;
+    t_data.num_producers = &num_producers;
+    t_data.num_consumers = &num_consumers;
+    t_data.timeout_value = &timeout_value;
+
+    // Check for user terminal arguments.
+    for (int i = 0 ; i < argc; i++){
+
+        // Look for flag
+        // -p = producers, -c = consumers, -t = timeout value, -e = number of entries in queue
+        
+        if (strcmp(argv[i],"-p") == 0){
+
+            // DEV: prints out arg and index of arg
+            // Check if arg next to flag is a digit
+            printf("HI!%s\n", argv[i]);
+            if (isdigit(*argv[i+1])){
+                // Cast user argument into int
+                int user_num_producers = toascii(*argv[i+1]);
+                // Check if user argument is within range.
+                printf("arg:%d\n", user_num_producers);
+                if (user_num_producers > 0 && user_num_producers <= NUM_PRODUCERS){
+                    // Change number of producers
+                    num_producers = user_num_producers;
+                }
+                else{
+                    printf("User supplied value for number of producers is out of range!\n");
+                    printf("Please enter a value between 1 and %d\n", (int)NUM_PRODUCERS);     
+                    return 0;           
+                }
+            }
+            else{
+                printf("Please enter an integer value after -p.\n");
+                return 0;
+            }
+        } 
+    } 
+
+    // Pass thread data to the threads and run.
+    runThreads(&t_data);
 };
