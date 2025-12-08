@@ -204,10 +204,10 @@ message_t generateMessage(int priority){
 void* timerThread(void* arg){
     // Recast void* arg to unpack timer address
     struct t_data_t* t_data = (struct t_data_t*) arg;
-    int * timer = (int*) t_data->timer;
-
+    int* timer = (int*) t_data->timer;
+    int* timeout_value = (int*) t_data->timeout_value;
     // Increment timer until timeout value in seconds
-    for (int i = 0; i < TIMEOUT_VALUE; i++){
+    for (int i = 0; i < *timeout_value; i++){
         sleep(1);
         *timer = *timer + 1;
     }
@@ -223,13 +223,14 @@ void* producerThread(void* arg){
     struct t_data_t* t_data = (struct t_data_t*) arg;
     prio_queue_t * shared_queue = (prio_queue_t*) t_data->shared_queue;
     int * timer = (int*) t_data->timer;
+    int * timeout_value = (int*)t_data->timeout_value;
 
     // Integer to store amount of successful writes by this thread.
     int writes = 0;
 
     // Generate a stream of random integer data values after a random time from 1 - 2 seconds
     // Then write onto shared queue
-    while(*timer < TIMEOUT_VALUE){
+    while(*timer < *timeout_value){
         if(shared_queue){
             // retval stores writeMessage() return value. if -1, 
             // queue was full and message is not written.
@@ -239,7 +240,7 @@ void* producerThread(void* arg){
             message_t message = generateMessage(priority);
 
             // Loop until message is successfully written.
-            while(retval == -1 && *timer < TIMEOUT_VALUE){
+            while(retval == -1 && *timer < *timeout_value){
                 // Write message onto queue
                 retval = writeMessage(shared_queue, &message);
                 // Wait for a random time
@@ -258,12 +259,13 @@ void* consumerThread(void* arg){
     struct t_data_t* t_data = (struct t_data_t*) arg;
     prio_queue_t * shared_queue = (prio_queue_t*) t_data->shared_queue;
     int * timer = (int*) t_data->timer;
+    int * timeout_value = (int*)t_data->timeout_value;
 
     // Integer to store amount of successful reads by this thread.
     int reads = 0;
     // Read after a random time from 1-MAX_CONS_WAIT seconds
-    for(int i = 0; i < 10; i++){
-        if(shared_queue && *timer < TIMEOUT_VALUE){
+    while(*timer < *timeout_value){
+        if(shared_queue && *timer < *timeout_value){
             int data_value = readMessage(shared_queue);
 
             // DEV: Print out data. If readMessage() returns -1 that means queue was empty.
@@ -363,7 +365,7 @@ void runThreads(struct t_data_t* t_data){
 int checkTermArgs(struct t_data_t* t_data, int argc, char *argv[]){
     for (int i = 0 ; i < argc; i++){
         // Look for flag
-        // -p = producers, -c = consumers, -t = timeout value, -e = number of entries in queue
+        // -p = producers
         if (strcmp(argv[i],"-p") == 0){
             // Check if arg next to flag is a digit
             if(i < argc - 1){
@@ -374,7 +376,6 @@ int checkTermArgs(struct t_data_t* t_data, int argc, char *argv[]){
                     if (user_num_producers > 0 && user_num_producers <= NUM_PRODUCERS){
                         // Change number of producers
                         t_data->num_producers = &user_num_producers;
-                        return 0;
                     }
                     else{
                         printf("User supplied value for number of producers is out of range!\n");
@@ -390,8 +391,67 @@ int checkTermArgs(struct t_data_t* t_data, int argc, char *argv[]){
                 printf("Please enter a value for number of producers after \"-p\".\n");
                 return 0;
             }
-        } 
-    } 
+        }
+
+        // -c = consumers, 
+        if (strcmp(argv[i],"-c") == 0){
+            // Check if arg next to flag is a digit
+            if(i < argc - 1){
+                if (isdigit(*argv[i+1])){
+                    // Cast user argument into ints
+                    int user_num_consumers = atoi(argv[i+1]);
+                    // Check if user argument is within range.
+                    if (user_num_consumers > 0 && user_num_consumers <= NUM_CONSUMERS){
+                        // Change number of consumers
+                        t_data->num_consumers = &user_num_consumers;
+                    }
+                    else{
+                        printf("User supplied value for number of consumers is out of range!\n");
+                        printf("Please enter a value between 1 and %d.\n", (int)NUM_CONSUMERS);     
+                        return 0;           
+                    }
+                }
+                else{
+                    printf("Please enter a positive integer value after \"-c\".\n");
+                    return 0;
+                }
+            }else{
+                printf("Please enter a value for number of producers after \"-c\".\n");
+                return 0;
+            }
+        }
+
+        // -t = timeout value
+        if (strcmp(argv[i],"-t") == 0){
+            // Check if arg next to flag is a digit
+            if(i < argc - 1){
+                if (isdigit(*argv[i+1])){
+                    // Cast user argument into ints
+                    int user_timeout_value = atoi(argv[i+1]);
+                    // Check if user argument is within range.
+                    if (user_timeout_value > 0 && user_timeout_value <= TIMEOUT_VALUE){
+                        // Change timeout value
+                        t_data->timeout_value = &user_timeout_value;
+                    }
+                    else{
+                        printf("User supplied value for timeout value is out of range!\n");
+                        printf("Please enter a value between 1 and %d.\n", (int)TIMEOUT_VALUE);     
+                        return 0;           
+                    }
+                }
+                else{
+                    printf("Please enter a positive integer value after \"-t\".\n");
+                    return 0;
+                }
+            }else{
+                printf("Please enter a value for timeout value after \"-t\".\n");
+                return 0;
+            }
+        }
+        // -e = number of entries in queue
+    }
+    
+    return 1; 
 }
 
 /*
@@ -421,8 +481,10 @@ int main(int argc, char *argv[]) {
     t_data.timeout_value = &timeout_value;
 
     // Replace default initialized values with terminal values.
-    checkTermArgs(&t_data, argc, argv);
-
     // Pass thread data to the threads and run.
-    runThreads(&t_data);
+    if(checkTermArgs(&t_data, argc, argv)){
+        runThreads(&t_data);
+    }else{
+        printf("Program exiting due to bad terminal argument entry.\n");
+    }
 };
