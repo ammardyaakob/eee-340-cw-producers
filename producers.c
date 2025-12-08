@@ -359,6 +359,41 @@ void runThreads(struct t_data_t* t_data){
     pthread_join(timer_thread,NULL);
 }
 
+// Checks for terminal arguments and replaces values in t_data with terminal values.
+int checkTermArgs(struct t_data_t* t_data, int argc, char *argv[]){
+    for (int i = 0 ; i < argc; i++){
+        // Look for flag
+        // -p = producers, -c = consumers, -t = timeout value, -e = number of entries in queue
+        if (strcmp(argv[i],"-p") == 0){
+            // Check if arg next to flag is a digit
+            if(i < argc - 1){
+                if (isdigit(*argv[i+1])){
+                    // Cast user argument into ints
+                    int user_num_producers = atoi(argv[i+1]);
+                    // Check if user argument is within range.
+                    if (user_num_producers > 0 && user_num_producers <= NUM_PRODUCERS){
+                        // Change number of producers
+                        t_data->num_producers = &user_num_producers;
+                        return 0;
+                    }
+                    else{
+                        printf("User supplied value for number of producers is out of range!\n");
+                        printf("Please enter a value between 1 and %d.\n", (int)NUM_PRODUCERS);     
+                        return 0;           
+                    }
+                }
+                else{
+                    printf("Please enter a positive integer value after \"-p\".\n");
+                    return 0;
+                }
+            }else{
+                printf("Please enter a value for number of producers after \"-p\".\n");
+                return 0;
+            }
+        } 
+    } 
+}
+
 /*
 ====
 MAIN
@@ -385,36 +420,8 @@ int main(int argc, char *argv[]) {
     t_data.num_consumers = &num_consumers;
     t_data.timeout_value = &timeout_value;
 
-    // Check for user terminal arguments.
-    for (int i = 0 ; i < argc; i++){
-
-        // Look for flag
-        // -p = producers, -c = consumers, -t = timeout value, -e = number of entries in queue
-        
-        if (strcmp(argv[i],"-p") == 0){
-            // Check if arg next to flag is a digit
-            
-            if (isdigit(*argv[i+1])){
-                
-                // Cast user argument into ints
-                int user_num_producers = atoi(argv[i+1]);
-                // Check if user argument is within range.
-                if (user_num_producers > 0 && user_num_producers <= NUM_PRODUCERS){
-                    // Change number of producers
-                    num_producers = user_num_producers;
-                }
-                else{
-                    printf("User supplied value for number of producers is out of range!\n");
-                    printf("Please enter a value between 1 and %d\n", (int)NUM_PRODUCERS);     
-                    return 0;           
-                }
-            }
-            else{
-                printf("Please enter an integer value after -p.\n");
-                return 0;
-            }
-        } 
-    } 
+    // Replace default initialized values with terminal values.
+    checkTermArgs(&t_data, argc, argv);
 
     // Pass thread data to the threads and run.
     runThreads(&t_data);
