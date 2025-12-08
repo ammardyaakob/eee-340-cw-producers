@@ -395,12 +395,13 @@ int main(int argc, char *argv[]) {
 
             // DEV: prints out arg and index of arg
             // Check if arg next to flag is a digit
-            printf("HI!%s\n", argv[i]);
+            
             if (isdigit(*argv[i+1])){
-                // Cast user argument into int
-                int user_num_producers = toascii(*argv[i+1]);
+                
+                // Cast user argument into ints
+                int user_num_producers = atoi(argv[i+1]);
+                printf("HI! argument passed: %d\n", user_num_producers);
                 // Check if user argument is within range.
-                printf("arg:%d\n", user_num_producers);
                 if (user_num_producers > 0 && user_num_producers <= NUM_PRODUCERS){
                     // Change number of producers
                     num_producers = user_num_producers;
