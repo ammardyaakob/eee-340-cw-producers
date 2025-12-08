@@ -294,7 +294,7 @@ void createTimerThread(pthread_t* thread, struct t_data_t* t_data){
 
 // THREAD: Create NUM_PRODUCER threads that run producerThread() with arguments in thread_data
 void createProducerThreads(pthread_t* threads, struct t_data_t* t_data){
-    int num_producers = NUM_PRODUCERS; // to use in for loop
+    int num_producers = *t_data->num_producers; // to use in for loop
 
     for (int i = 0; i < num_producers; i++) {
         
@@ -312,7 +312,7 @@ void createProducerThreads(pthread_t* threads, struct t_data_t* t_data){
 
 // THREAD: Create NUM_CONSUMER threads that run consumerThread()
 void createConsumerThreads(pthread_t* threads, struct t_data_t* t_data){
-    int num_consumers = NUM_CONSUMERS; // to use in for loop
+    int num_consumers = *t_data->num_consumers; // to use in for loop
     for (int i = 0; i < num_consumers; i++) {
         // Passing shared_queue as argument into thread
         void* args = (void*) t_data;
@@ -330,7 +330,7 @@ void runThreads(struct t_data_t* t_data){
 
     // Get number of producers and consumers from thread data passed.
     int num_producers = *t_data->num_producers; 
-    int num_consumers = *t_data->num_consumers; 
+    int num_consumers = *t_data->num_consumers;
 
     // Store producer and consumer threads in an array so they can be joined.
     pthread_t producer_threads[num_producers];
@@ -392,15 +392,12 @@ int main(int argc, char *argv[]) {
         // -p = producers, -c = consumers, -t = timeout value, -e = number of entries in queue
         
         if (strcmp(argv[i],"-p") == 0){
-
-            // DEV: prints out arg and index of arg
             // Check if arg next to flag is a digit
             
             if (isdigit(*argv[i+1])){
                 
                 // Cast user argument into ints
                 int user_num_producers = atoi(argv[i+1]);
-                printf("HI! argument passed: %d\n", user_num_producers);
                 // Check if user argument is within range.
                 if (user_num_producers > 0 && user_num_producers <= NUM_PRODUCERS){
                     // Change number of producers
