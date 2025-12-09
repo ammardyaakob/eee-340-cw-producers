@@ -10,10 +10,10 @@
 #include <string.h>
 #include <ctype.h>
 
-#define Q_SIZE 5
+#define Q_SIZE 20
 #define NUM_PRODUCERS 10
 #define NUM_CONSUMERS 5
-#define MAX_ENTRIES 20
+#define MAX_ENTRIES 5
 #define MAX_PROD_MESSAGES 9
 #define MAX_PROD_WAIT 2
 #define MAX_CONS_WAIT 4
@@ -38,6 +38,7 @@ typedef struct {
 typedef struct {
     message_t entries[Q_SIZE];
     int size;
+    int* max_entries;
 } prio_queue_t;
 
 // THREAD : Struct to pass pointers into threads
@@ -60,8 +61,9 @@ node that will be accessed when a consumer reads. It is implemented as a max hea
 */
 
 
-void initQueue(prio_queue_t* queue){
+void initQueue(prio_queue_t* queue, int* max_entries){
     queue->size = 0;
+    queue->max_entries = max_entries;
 }
 
 // HEAP: Swap message between two message pointers.
@@ -362,7 +364,7 @@ void runThreads(struct t_data_t* t_data){
 }
 
 // Checks for terminal arguments and replaces values in t_data with terminal values.
-int checkTermArgs(struct t_data_t* t_data, int argc, char *argv[]){
+int checkTermArgs(struct t_data_t* t_data, prio_queue_t *queue, int argc, char *argv[]){
     for (int i = 0 ; i < argc; i++){
         // Look for flag
         // -p = producers
@@ -448,7 +450,34 @@ int checkTermArgs(struct t_data_t* t_data, int argc, char *argv[]){
                 return 0;
             }
         }
+
         // -e = number of entries in queue
+        if (strcmp(argv[i],"-e") == 0){
+            // Check if arg next to flag is a digit
+            if(i < argc - 1){
+                if (isdigit(*argv[i+1])){
+                    // Cast user argument into ints
+                    int user_max_entries = atoi(argv[i+1]);
+                    // Check if user argument is within range.
+                    if (user_max_entries > 0 && user_max_entries <= Q_SIZE){
+                        // Change timeout value
+                        queue->max_entries = &user_max_entries;
+                    }
+                    else{
+                        printf("User supplied value for maximum entries is out of range!\n");
+                        printf("Please enter a value between 1 and %d.\n", (int)Q_SIZE);     
+                        return 0;           
+                    }
+                }
+                else{
+                    printf("Please enter a positive integer value after \"-e\".\n");
+                    return 0;
+                }
+            }else{
+                printf("Please enter a value for timeout value after \"-e\".\n");
+                return 0;
+            }
+        }
     }
     
     return 1; 
@@ -468,9 +497,10 @@ int main(int argc, char *argv[]) {
     int num_producers = NUM_PRODUCERS; 
     int num_consumers = NUM_CONSUMERS; 
     int timeout_value = TIMEOUT_VALUE;
+    int max_entries = MAX_ENTRIES;
     int timer = 0;
     prio_queue_t shared_queue; 
-    initQueue(&shared_queue);
+    initQueue(&shared_queue, &max_entries);
 
     // Pack t_data with addresses of variables and shared queue.
     struct t_data_t t_data;
@@ -482,7 +512,7 @@ int main(int argc, char *argv[]) {
 
     // Replace default initialized values with terminal values.
     // Pass thread data to the threads and run.
-    if(checkTermArgs(&t_data, argc, argv)){
+    if(checkTermArgs(&t_data, &shared_queue, argc, argv)){
         runThreads(&t_data);
     }else{
         printf("Program exiting due to bad terminal argument entry.\n");
