@@ -379,7 +379,7 @@ int checkTermArgs(struct t_data_t* t_data, prio_queue_t *queue, int argc, char *
                     // Check if user argument is within range.
                     if (user_num_producers > 0 && user_num_producers <= NUM_PRODUCERS){
                         // Change number of producers
-                        t_data->num_producers = &user_num_producers;
+                        *t_data->num_producers = user_num_producers;
                     }
                     else{
                         printf("User supplied value for number of producers is out of range!\n");
@@ -407,7 +407,7 @@ int checkTermArgs(struct t_data_t* t_data, prio_queue_t *queue, int argc, char *
                     // Check if user argument is within range.
                     if (user_num_consumers > 0 && user_num_consumers <= NUM_CONSUMERS){
                         // Change number of consumers
-                        t_data->num_consumers = &user_num_consumers;
+                        *t_data->num_consumers = user_num_consumers;
                     }
                     else{
                         printf("User supplied value for number of consumers is out of range!\n");
@@ -435,7 +435,7 @@ int checkTermArgs(struct t_data_t* t_data, prio_queue_t *queue, int argc, char *
                     // Check if user argument is within range.
                     if (user_timeout_value > 0 && user_timeout_value <= TIMEOUT_VALUE){
                         // Change timeout value
-                        t_data->timeout_value = &user_timeout_value;
+                        *t_data->timeout_value = user_timeout_value;
                     }
                     else{
                         printf("User supplied value for timeout value is out of range!\n");
@@ -463,7 +463,7 @@ int checkTermArgs(struct t_data_t* t_data, prio_queue_t *queue, int argc, char *
                     // Check if user argument is within range.
                     if (user_max_entries > 0 && user_max_entries <= Q_SIZE){
                         // Change timeout value
-                        queue->max_entries = &user_max_entries;
+                        *queue->max_entries = user_max_entries;
                     }
                     else{
                         printf("User supplied value for maximum entries is out of range!\n");
