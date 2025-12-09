@@ -139,8 +139,21 @@ int isFull(prio_queue_t* queue) {
     return (queue->size == *queue->max_entries); 
 }
 
+// Print Queue Status
+int displayQueue(prio_queue_t *queue){ 
+    system("clear");
+    printf("======THE QUEUE======\n");
+    for (int i = 0; i< queue->size; i++){
+        printf("Index %d -- M: %d, P: %d\n", i, queue->entries[i].data_value, queue->entries[i].priority);
+    }
+    printf("=====================\n");
+    return 0;
+}
+
+
 // Add message to queue if not full. If successful, returns 0. If queue is full, returns -1.
 int enqueue(prio_queue_t* queue, message_t* message){
+    displayQueue(queue);
     if(isFull(queue)){
         // DEV: Print if queue was full on write
         //printf("Queue full!\n");
@@ -153,6 +166,7 @@ int enqueue(prio_queue_t* queue, message_t* message){
 // Reads and removes a message in queue if there is one. 
 // If successful, returns the data value. If queue is empty, returns -1.
 int dequeue(prio_queue_t* queue){
+    displayQueue(queue);
     // Check if queue is empty
     if(isEmpty(queue)){
         // DEV: Print if queue was empty on read
