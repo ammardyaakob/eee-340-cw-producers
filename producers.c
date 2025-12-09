@@ -136,7 +136,7 @@ int isEmpty(prio_queue_t* queue) {
     return (queue->size == 0); 
 }
 int isFull(prio_queue_t* queue) { 
-    return (queue->size == Q_SIZE); 
+    return (queue->size == *queue->max_entries); 
 }
 
 // Add message to queue if not full. If successful, returns 0. If queue is full, returns -1.
@@ -248,7 +248,9 @@ void* producerThread(void* arg){
                 // Wait for a random time
                 sleep(rand() % MAX_PROD_WAIT + 1);
             }
-            writes++;
+            if (retval == 0){
+                writes++; // increment on successful write.
+            }
         }
     }
     return ((void*) writes);
@@ -273,7 +275,7 @@ void* consumerThread(void* arg){
             // DEV: Print out data. If readMessage() returns -1 that means queue was empty.
             if (data_value != -1){
                 printf("Consumer %d read: %d\n", gettid(), data_value);
-                reads++;
+                reads++; // Increment on successful read.
             }
             else{
                 printf("Consumer %d failed to read\n", gettid());
