@@ -143,7 +143,7 @@ int isFull(prio_queue_t* queue) {
 int enqueue(prio_queue_t* queue, message_t* message){
     if(isFull(queue)){
         // DEV: Print if queue was full on write
-        printf("Queue full!\n");
+        //printf("Queue full!\n");
         return -1;
     }
     heapInsert(queue, message);
@@ -156,7 +156,7 @@ int dequeue(prio_queue_t* queue){
     // Check if queue is empty
     if(isEmpty(queue)){
         // DEV: Print if queue was empty on read
-        printf("Queue empty!\n");
+        //printf("Queue empty!\n");
         return -1;
     }
     // Read a message from the heap by removing the root node 
@@ -229,6 +229,8 @@ void* producerThread(void* arg){
 
     // Integer to store amount of successful writes by this thread.
     int writes = 0;
+    int wait_count = 0;
+    int delay = 0;
 
     // Generate a stream of random integer data values after a random time from 1 - 2 seconds
     // Then write onto shared queue
@@ -245,13 +247,22 @@ void* producerThread(void* arg){
             while(retval == -1 && *timer < *timeout_value){
                 // Write message onto queue
                 retval = writeMessage(shared_queue, &message);
-                // Wait for a random time
-                sleep(rand() % MAX_PROD_WAIT + 1);
+                // Wait for a random time and increment wait time.
+                delay = rand() % MAX_PROD_WAIT + 1;
+                sleep(delay);
+                wait_count = wait_count + delay;
             }
             if (retval == 0){
                 writes++; // increment on successful write.
             }
         }
+    }
+    if(writes){
+    printf("Producer %d finished with %d writes with average waiting time of %d\n", 
+        gettid(), writes, wait_count/writes);
+    }else{
+        printf("Producer %d finished with %d writes with total waiting time of %d\n", 
+        gettid(), writes, wait_count);
     }
     return ((void*) writes);
 }
@@ -274,11 +285,11 @@ void* consumerThread(void* arg){
 
             // DEV: Print out data. If readMessage() returns -1 that means queue was empty.
             if (data_value != -1){
-                printf("Consumer %d read: %d\n", gettid(), data_value);
+                //printf("Consumer %d read: %d\n", gettid(), data_value);
                 reads++; // Increment on successful read.
             }
             else{
-                printf("Consumer %d failed to read\n", gettid());
+                //printf("Consumer %d failed to read\n", gettid());
             }
             sleep(rand() % MAX_CONS_WAIT + 1);
         }
@@ -348,18 +359,22 @@ void runThreads(struct t_data_t* t_data){
     createConsumerThreads(consumer_threads,t_data);
     createTimerThread(&timer_thread,t_data);
 
+    // Count throughput
+    int total_reads = 0;
+
     // Wait for all threads in arrays to terminate
     // DEV: Prints out amount of reads/writes of each producer and consumer.
     for (int i = 0; i < num_producers; i++) {
         void* retval;
         pthread_join(producer_threads[i], &retval);
-        printf("Producer %d exited with %d writes\n", i, (int)retval);
+        //printf("Producer %d exited with %d writes\n", i, (int)retval);
     }
 
     for (int i = 0; i < num_consumers; i++) {
         void* retval;
         pthread_join(consumer_threads[i], &retval);
         printf("Consumer %d exited with %d reads\n", i, (int)retval);
+        total_reads = total_reads + (int) retval;
     }
 
     pthread_join(timer_thread,NULL);
